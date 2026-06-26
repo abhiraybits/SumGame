@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Sum 10</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f0f1a;
+      color: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100svh;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    #hud {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 20px 8px;
+      font-size: 1rem;
+    }
+
+    #score-label { color: #aaa; font-size: .85rem; }
+    #score { font-size: 2rem; font-weight: 800; color: #f0c040; line-height: 1; }
+    #lives { font-size: 1.5rem; letter-spacing: 4px; }
+    #level-label { color: #aaa; font-size: .85rem; text-align: right; }
+    #level { font-size: 1.4rem; font-weight: 700; color: #7ecfff; }
+
+    #arena-wrapper {
+      position: relative;
+      width: min(92vw, 400px);
+      aspect-ratio: 1;
+      margin: 8px auto 0;
+    }
+
+    #arena {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      /* grid columns set by JS */
+      gap: 4px;
+      background: #1a1a2e;
+      border-radius: 14px;
+      padding: 4px;
+      position: relative;
+      box-shadow: 0 0 40px #0005;
+    }
+
+    .cell {
+      background: #12122a;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: 800;
+      cursor: pointer;
+      position: relative;
+      transition: background .1s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .cell.frozen {
+      background: #1e3a5f;
+      box-shadow: 0 0 12px #4af inset;
+      color: #7ecfff;
+      animation: pulse 1s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulse {
+      from { box-shadow: 0 0 8px #4af inset; }
+      to   { box-shadow: 0 0 20px #4af inset, 0 0 8px #4af; }
+    }
+
+    .cell.match {
+      animation: boom .4s ease-out forwards;
+    }
+
+    @keyframes boom {
+      0%   { transform: scale(1.2); background: #2ecc71; color: #fff; }
+      50%  { transform: scale(1.5); background: #27ae60; }
+      100% { transform: scale(0); opacity: 0; }
+    }
+
+    .cell.miss {
+      animation: shake .35s ease-out forwards;
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); background: #c0392b; }
+      25%      { transform: translateX(-6px); }
+      75%      { transform: translateX(6px); }
+    }
+
+    /* Moving number bubble */
+    .mover {
+      position: absolute;
+      width: calc(100% / var(--cols) - 4px - (4px / var(--cols)));
+      aspect-ratio: 1;
+      background: linear-gradient(135deg, #8e44ad, #c0392b);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: #fff;
+      pointer-events: none;
+      z-index: 10;
+      box-shadow: 0 0 14px #c0392b88;
+    }
+
+    .particle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 20;
+      transform: translate(-50%, -50%);
+      animation: particle-fly 0.55s ease-out forwards;
+    }
+
+    @keyframes particle-fly {
+      0%   { transform: translate(-50%, -50%) translate(0, 0) scale(1); opacity: 1; }
+      100% { transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+    }
+
+    #flash {
+      position: fixed;
+      inset: 0;
+      background: #2ecc71;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 100;
+      transition: opacity .15s;
+    }
+
+    #flash.show { opacity: .25; }
+
+    /* Overlay screens */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: #0009;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 200;
+      backdrop-filter: blur(6px);
+    }
+
+    .overlay h1 { font-size: 2.8rem; font-weight: 900; }
+    .overlay p  { color: #bbb; font-size: 1rem; max-width: 280px; text-align: center; line-height: 1.5; }
+    .overlay .big-score { font-size: 3.5rem; font-weight: 900; color: #f0c040; }
+
+    .btn {
+      background: linear-gradient(135deg, #8e44ad, #c0392b);
+      border: none;
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 14px 40px;
+      border-radius: 40px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px #c0392b55;
+      transition: transform .1s, box-shadow .1s;
+    }
+
+    .btn:active { transform: scale(.96); box-shadow: 0 2px 10px #c0392b55; }
+
+    #combo-toast {
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #f0c040;
+      color: #111;
+      font-size: 1.4rem;
+      font-weight: 900;
+      padding: 8px 24px;
+      border-radius: 30px;
+      pointer-events: none;
+      z-index: 300;
+      opacity: 0;
+      transition: opacity .2s;
+    }
+
+    #combo-toast.show { opacity: 1; }
+
+    .mode-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 20px;
+      font-size: 1rem;
+      gap: 6px;
+      min-width: 130px;
+    }
+
+    .mode-desc {
+      font-size: .72rem;
+      font-weight: 400;
+      opacity: .8;
+      line-height: 1.4;
+      text-align: center;
+    }
+
+    #stage-hud {
+      font-size: .9rem;
+      color: #7ecfff;
+      text-align: center;
+      letter-spacing: 1px;
+    }
+
+    /* campaign: cleared cells stay dark */
+    .cell.cleared {
+      background: #0d0d1a;
+      pointer-events: none;
+    }
+
+    /* ── Dev panel ── */
+    #dev-fab {
+      position: fixed;
+      bottom: 18px;
+      right: 18px;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #2c2c3e;
+      border: 1px solid #444;
+      color: #aaa;
+      font-size: 1.1rem;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 150;
+      box-shadow: 0 2px 10px #0005;
+    }
+
+    #dev-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0; right: 0;
+      background: #1a1a2e;
+      border-top: 1px solid #333;
+      padding: 20px 24px 28px;
+      z-index: 160;
+      display: none;
+      flex-direction: column;
+      gap: 18px;
+      max-width: 420px;
+      margin: 0 auto;
+      border-radius: 18px 18px 0 0;
+      box-shadow: 0 -4px 30px #0007;
+    }
+
+    #dev-panel h3 {
+      font-size: 1rem;
+      color: #f0c040;
+      letter-spacing: 2px;
+      text-align: center;
+      margin: 0;
+    }
+
+    .dev-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .dev-row label {
+      font-size: .8rem;
+      color: #aaa;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .dev-row input[type=range] {
+      width: 100%;
+      accent-color: #8e44ad;
+    }
+
+    .dev-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .dev-toggle span { font-size: .9rem; color: #ccc; }
+
+    .toggle-switch {
+      width: 44px; height: 24px;
+      background: #333;
+      border-radius: 12px;
+      position: relative;
+      cursor: pointer;
+      transition: background .2s;
+      border: none;
+    }
+
+    .toggle-switch.on { background: #8e44ad; }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      background: #fff;
+      border-radius: 50%;
+      top: 3px; left: 3px;
+      transition: transform .2s;
+    }
+
+    .toggle-switch.on::after { transform: translateX(20px); }
+
+    .dev-btn-row { display: flex; gap: 10px; }
+    .dev-btn-row .btn { flex: 1; font-size: .9rem; padding: 10px; }
+
+    #instructions {
+      font-size: .78rem;
+      color: #555;
+      text-align: center;
+      padding: 8px 20px;
+      max-width: 420px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div id="flash"></div>
+<div id="combo-toast"></div>
+
+<!-- Start / Mode select screen -->
+<div class="overlay" id="start-screen">
+  <h1>SUM 10</h1>
+  <p>Freeze numbers, collide movers,<br>make pairs that sum to <strong>10</strong>!</p>
+  <div style="display:flex;gap:12px;margin-top:8px">
+    <button class="btn mode-btn" onclick="startGame('survival')">
+      ⚔️ Survival
+      <span class="mode-desc">Score as long<br>as you can</span>
+    </button>
+    <button class="btn mode-btn" onclick="startGame('campaign')">
+      🗺️ Campaign
+      <span class="mode-desc">Clear every cell<br>to advance</span>
+    </button>
+    <button class="btn mode-btn" onclick="startGame('bouncy')" style="background:linear-gradient(135deg,#00b894,#0984e3)">
+      🏀 Bouncy
+      <span class="mode-desc">Numbers bounce<br>back 3 times</span>
+    </button>
+  </div>
+</div>
+
+<!-- Game Over screen -->
+<div class="overlay" id="gameover-screen" style="display:none">
+  <h1 id="gameover-title">Game Over</h1>
+  <div class="big-score" id="final-score">0</div>
+  <p id="gameover-sub">points</p>
+  <button class="btn" onclick="startGame(currentMode)">Play Again</button>
+  <button class="btn" style="background:#333;box-shadow:none" onclick="showModeSelect()">Change Mode</button>
+</div>
+
+<!-- Stage Clear screen (campaign) -->
+<div class="overlay" id="stageclear-screen" style="display:none">
+  <h1 style="color:#f0c040">Stage Clear!</h1>
+  <div class="big-score" id="stage-num">1</div>
+  <p id="stageclear-time"></p>
+  <p>Get ready for stage <span id="next-stage-num">2</span>…</p>
+</div>
+
+<div id="hud">
+  <div>
+    <div id="score-label">SCORE</div>
+    <div id="score">0</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+    <div id="lives">❤️❤️❤️</div>
+    <div id="stage-hud" style="display:none"></div>
+    <div id="timer" style="font-size:.85rem;color:#f0c040;font-weight:700;letter-spacing:1px">0:00</div>
+  </div>
+  <div style="text-align:right">
+    <div id="level-label">LEVEL</div>
+    <div id="level">1</div>
+  </div>
+</div>
+
+<div id="arena-wrapper">
+  <div id="arena"></div>
+</div>
+
+<div id="instructions">Tap a number to freeze it &bull; A moving number will collide &bull; Sum = 10 → score!</div>
+
+<!-- Dev FAB -->
+<button id="dev-fab" onclick="toggleDevPanel()">⚙️</button>
+
+<!-- Dev Panel -->
+<div id="dev-panel">
+  <h3>⚙ DEV MODE</h3>
+
+  <div class="dev-row">
+    <label>
+      <span>Mover Speed</span>
+      <span id="speed-val">Normal</span>
+    </label>
+    <input type="range" id="speed-slider" min="1" max="10" step="1" value="3" oninput="onSpeedSlider(this.value)">
+  </div>
+
+  <div class="dev-toggle">
+    <span>Unlimited Lives</span>
+    <button class="toggle-switch" id="lives-toggle" onclick="toggleUnlimitedLives()"></button>
+  </div>
+
+  <div class="dev-btn-row">
+    <button class="btn" style="background:#333;box-shadow:none" onclick="toggleDevPanel()">Close</button>
+    <button class="btn" style="background:#c0392b;box-shadow:none" onclick="goToMenu()">← Menu</button>
+  </div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const COLS = 5;
+const ROWS = 5;
+const TOTAL_CELLS = COLS * ROWS;
+const MAX_LIVES = 3;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let score = 0;
+let lives = MAX_LIVES;
+let level = 1;
+let frozenCells = new Map(); // idx → value
+let cells = [];
+let moverTimer = null;
+let gameRunning = false;
+let combo = 0;
+let currentMode = 'survival';
+let stage = 1;
+let clearedCount = 0;
+let timerSeconds = 0;
+let timerInterval = null;
+let devSpeedMultiplier = 1;   // 1 = normal
+let devUnlimitedLives = false;
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const arena        = document.getElementById('arena');
+const scoreEl      = document.getElementById('score');
+const livesEl      = document.getElementById('lives');
+const levelEl      = document.getElementById('level');
+const stageHud     = document.getElementById('stage-hud');
+const startScrn    = document.getElementById('start-screen');
+const gameoverScrn = document.getElementById('gameover-screen');
+const stageclearScrn = document.getElementById('stageclear-screen');
+const finalScore   = document.getElementById('final-score');
+const flash        = document.getElementById('flash');
+const comboToast   = document.getElementById('combo-toast');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+function randNum() { return rand(0, 10); }
+
+function speedMs() {
+  const base = Math.max(400, 1400 - (level - 1) * 80);
+  return base / devSpeedMultiplier;
+}
+
+function spawnInterval() {
+  const base = Math.max(900, 2800 - (level - 1) * 180);
+  return base / devSpeedMultiplier;
+}
+
+// ── Build grid ────────────────────────────────────────────────────────────────
+function buildGrid() {
+  arena.innerHTML = '';
+  arena.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+  arena.style.setProperty('--cols', COLS);
+  cells = [];
+
+  for (let i = 0; i < TOTAL_CELLS; i++) {
+    const el = document.createElement('div');
+    el.className = 'cell';
+    el.dataset.idx = i;
+    el.addEventListener('click', () => onCellClick(i));
+    arena.appendChild(el);
+    cells.push({ el, value: null });
+  }
+}
+
+function cellCoords(idx) {
+  return { col: idx % COLS, row: Math.floor(idx / COLS) };
+}
+
+function showNumber(idx, val) {
+  cells[idx].value = val;
+  cells[idx].el.textContent = val !== null ? val : '';
+}
+
+// ── Populate grid with random static numbers ──────────────────────────────────
+function populateGrid() {
+  for (let i = 0; i < TOTAL_CELLS; i++) {
+    showNumber(i, randNum());
+  }
+}
+
+// ── Cell tap → freeze / unfreeze ─────────────────────────────────────────────
+function onCellClick(idx) {
+  if (!gameRunning) return;
+  if (cells[idx].value === null) return;
+
+  if (frozenCells.has(idx)) {
+    frozenCells.delete(idx);
+    cells[idx].el.classList.remove('frozen');
+  } else {
+    frozenCells.set(idx, cells[idx].value);
+    cells[idx].el.classList.add('frozen');
+  }
+}
+
+// ── Seed complement into the mover's path ────────────────────────────────────
+function seedComplement(complement, pathCells) {
+  // only seed if the complement isn't already visible on the path
+  const alreadyPresent = pathCells.some(idx => cells[idx].value === complement);
+  if (alreadyPresent) return;
+  const candidates = pathCells.filter(idx => !frozenCells.has(idx) && cells[idx].value !== null);
+  if (candidates.length === 0) return;
+  showNumber(candidates[rand(0, candidates.length - 1)], complement);
+}
+
+// ── Collision helpers ─────────────────────────────────────────────────────────
+function rectsOverlap(a, b) {
+  return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+}
+
+// ── Moving number ─────────────────────────────────────────────────────────────
+function launchMover() {
+  if (!gameRunning) return;
+
+  const num = randNum();
+  const speed = speedMs();
+
+  const edge = rand(0, 3); // 0=left→right, 1=right→left, 2=top→bottom, 3=bottom→top
+  const arenaRect = arena.getBoundingClientRect();
+  const trackIndex = edge < 2 ? rand(0, ROWS - 1) : rand(0, COLS - 1);
+
+  let crossedCells;
+  if (edge === 0)      crossedCells = Array.from({length: COLS}, (_, c) => trackIndex * COLS + c);
+  else if (edge === 1) crossedCells = Array.from({length: COLS}, (_, c) => trackIndex * COLS + (COLS - 1 - c));
+  else if (edge === 2) crossedCells = Array.from({length: ROWS}, (_, r) => r * COLS + trackIndex);
+  else                 crossedCells = Array.from({length: ROWS}, (_, r) => (ROWS - 1 - r) * COLS + trackIndex);
+
+  seedComplement(10 - num, crossedCells);
+
+  // Derive exact alignment from real cell rects
+  const firstCell = cells[crossedCells[0]].el.getBoundingClientRect();
+  const cellW = firstCell.width;
+  const cellH = firstCell.height;
+  // position relative to arena
+  const cellLeft = firstCell.left - arenaRect.left;
+  const cellTop  = firstCell.top  - arenaRect.top;
+
+  let startX, startY, endX, endY;
+  if (edge === 0) {
+    startX = -cellW;          startY = cellTop;
+    endX   = arenaRect.width; endY   = cellTop;
+  } else if (edge === 1) {
+    startX = arenaRect.width; startY = cellTop;
+    endX   = -cellW;          endY   = cellTop;
+  } else if (edge === 2) {
+    startX = cellLeft;        startY = -cellH;
+    endX   = cellLeft;        endY   = arenaRect.height;
+  } else {
+    startX = cellLeft;        startY = arenaRect.height;
+    endX   = cellLeft;        endY   = -cellH;
+  }
+
+  const mover = document.createElement('div');
+  mover.className = 'mover';
+  mover.textContent = num;
+  // match cell size exactly
+  mover.style.width  = cellW + 'px';
+  mover.style.height = cellH + 'px';
+  mover.style.left   = startX + 'px';
+  mover.style.top    = startY + 'px';
+  arena.appendChild(mover);
+
+  const totalDist = Math.abs(endX - startX) || Math.abs(endY - startY);
+  const totalTime = (totalDist / cellW) * speed;
+  let startTime = null;
+  let collided = false;
+  const maxBounces = currentMode === 'bouncy' ? 3 : 0;
+  let bouncesLeft = maxBounces;
+
+  // Bounce colours cycle to signal each pass
+  const BOUNCE_COLORS = [
+    'linear-gradient(135deg,#8e44ad,#c0392b)',
+    'linear-gradient(135deg,#00b894,#0984e3)',
+    'linear-gradient(135deg,#f0c040,#e17055)',
+    'linear-gradient(135deg,#fd79a8,#6c5ce7)',
+  ];
+  mover.style.background = BOUNCE_COLORS[0];
+
+  function step(ts) {
+    if (!gameRunning) { mover.remove(); return; }
+    if (!startTime) startTime = ts;
+    const t = Math.min((ts - startTime) / totalTime, 1);
+
+    const x = startX + (endX - startX) * t;
+    const y = startY + (endY - startY) * t;
+    mover.style.left = x + 'px';
+    mover.style.top  = y + 'px';
+
+    if (!collided && frozenCells.size > 0) {
+      const moverRect = mover.getBoundingClientRect();
+      for (const idx of crossedCells) {
+        if (!frozenCells.has(idx)) continue;
+        if (rectsOverlap(moverRect, cells[idx].el.getBoundingClientRect())) {
+          collided = true;
+          mover.remove();
+          if (num + frozenCells.get(idx) === 10) handleMatch(idx);
+          else                                   handleMiss(idx);
+          return;
+        }
+      }
+    }
+
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else if (bouncesLeft > 0) {
+      // Bounce: swap start/end, reverse crossedCells, reset timer
+      bouncesLeft--;
+      [startX, endX] = [endX, startX];
+      [startY, endY] = [endY, startY];
+      crossedCells = crossedCells.slice().reverse();
+      mover.style.background = BOUNCE_COLORS[maxBounces - bouncesLeft];
+      startTime = null;
+      requestAnimationFrame(step);
+    } else {
+      mover.remove();
+    }
+  }
+
+  requestAnimationFrame(step);
+  moverTimer = setTimeout(launchMover, spawnInterval());
+}
+
+// ── Particle burst ────────────────────────────────────────────────────────────
+const PARTICLE_COLORS = ['#2ecc71','#f0c040','#7ecfff','#e74c3c','#a29bfe','#fd79a8'];
+
+function spawnParticles(cellEl) {
+  const cr = cellEl.getBoundingClientRect();
+  const ar = arena.getBoundingClientRect();
+  const cx = cr.left - ar.left + cr.width  / 2;
+  const cy = cr.top  - ar.top  + cr.height / 2;
+  const count = 12;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+    const dist  = 28 + Math.random() * 44;
+    p.style.left  = cx + 'px';
+    p.style.top   = cy + 'px';
+    p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+    p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+    p.style.background = PARTICLE_COLORS[i % PARTICLE_COLORS.length];
+    p.style.width  = (6 + Math.random() * 6) + 'px';
+    p.style.height = p.style.width;
+    arena.appendChild(p);
+    setTimeout(() => p.remove(), 600);
+  }
+}
+
+// ── Match / Miss ──────────────────────────────────────────────────────────────
+function handleMatch(cellIdx) {
+  combo++;
+  score += combo > 1 ? combo : 1;
+
+  cells[cellIdx].el.classList.remove('frozen');
+  spawnParticles(cells[cellIdx].el);
+  cells[cellIdx].el.classList.add('match');
+
+  flash.classList.add('show');
+  setTimeout(() => flash.classList.remove('show'), 200);
+
+
+  frozenCells.delete(cellIdx);
+
+  setTimeout(() => {
+    cells[cellIdx].el.classList.remove('match');
+    if (currentMode === 'campaign') {
+      // permanently clear the cell
+      cells[cellIdx].value = null;
+      cells[cellIdx].el.textContent = '';
+      cells[cellIdx].el.classList.add('cleared');
+      clearedCount++;
+      if (clearedCount >= TOTAL_CELLS) {
+        stageClear();
+        return;
+      }
+    } else {
+      showNumber(cellIdx, randNum());
+    }
+    updateHUD();
+  }, 420);
+
+  updateHUD();
+  checkLevelUp();
+}
+
+function handleMiss(cellIdx) {
+  combo = 0;
+  if (!devUnlimitedLives) lives--;
+
+  cells[cellIdx].el.classList.remove('frozen');
+  cells[cellIdx].el.classList.add('miss');
+  frozenCells.delete(cellIdx);
+
+  setTimeout(() => {
+    cells[cellIdx].el.classList.remove('miss');
+    updateHUD();
+  }, 350);
+
+  updateHUD();
+  if (lives <= 0) endGame();
+}
+
+// ── Level up ──────────────────────────────────────────────────────────────────
+function checkLevelUp() {
+  if (currentMode === 'campaign') return;
+  const nextLevel = Math.floor(score / 15) + 1;
+  if (nextLevel > level) {
+    level = nextLevel;
+    showToast(`LEVEL ${level}!`);
+    updateHUD();
+  }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+function updateHUD() {
+  scoreEl.textContent = score;
+  levelEl.textContent = level;
+  livesEl.textContent = '❤️'.repeat(Math.max(0, lives)) + '🖤'.repeat(Math.max(0, MAX_LIVES - lives));
+  if (currentMode === 'campaign') {
+    stageHud.style.display = 'block';
+    stageHud.textContent = `STAGE ${stage}`;
+    const remaining = TOTAL_CELLS - clearedCount;
+    levelEl.textContent = `${remaining} left`;
+  } else {
+    stageHud.style.display = 'none';
+  }
+}
+
+// ── Timer ─────────────────────────────────────────────────────────────────────
+const timerEl = document.getElementById('timer');
+
+function startTimer() {
+  timerSeconds = 0;
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    const m = Math.floor(timerSeconds / 60);
+    const s = timerSeconds % 60;
+    timerEl.textContent = `${m}:${String(s).padStart(2, '0')}`;
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// ── Dev panel ────────────────────────────────────────────────────────────────
+const devFab   = document.getElementById('dev-fab');
+const devPanel = document.getElementById('dev-panel');
+
+const SPEED_LABELS = { 1:'Very Slow', 2:'Slow', 3:'Normal', 4:'Fast', 5:'Faster', 6:'Rapid', 7:'Blazing', 8:'Insane', 9:'Ludicrous', 10:'MAX' };
+const SPEED_MULTS  = { 1:0.3, 2:0.5, 3:1, 4:1.4, 5:1.9, 6:2.5, 7:3.2, 8:4.2, 9:5.5, 10:7.5 };
+
+function toggleDevPanel() {
+  const open = devPanel.style.display === 'flex';
+  devPanel.style.display = open ? 'none' : 'flex';
+}
+
+function onSpeedSlider(val) {
+  devSpeedMultiplier = SPEED_MULTS[val];
+  document.getElementById('speed-val').textContent = SPEED_LABELS[val];
+}
+
+function toggleUnlimitedLives() {
+  devUnlimitedLives = !devUnlimitedLives;
+  document.getElementById('lives-toggle').classList.toggle('on', devUnlimitedLives);
+  if (devUnlimitedLives) {
+    lives = MAX_LIVES;
+    updateHUD();
+  }
+}
+
+function goToMenu() {
+  gameRunning = false;
+  clearTimeout(moverTimer);
+  stopTimer();
+  devPanel.style.display = 'none';
+  devFab.style.display   = 'none';
+  stageclearScrn.style.display = 'none';
+  gameoverScrn.style.display   = 'none';
+  startScrn.style.display      = 'flex';
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  comboToast.textContent = msg;
+  comboToast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => comboToast.classList.remove('show'), 900);
+}
+
+// ── Game lifecycle ────────────────────────────────────────────────────────────
+function showModeSelect() {
+  gameoverScrn.style.display = 'none';
+  startScrn.style.display = 'flex';
+}
+
+function startGame(mode) {
+  currentMode = mode || 'survival';
+  score = 0; lives = MAX_LIVES; level = 1;
+  stage = 1; clearedCount = 0;
+  frozenCells = new Map();
+  combo = 0;
+  gameRunning = true;
+
+  startScrn.style.display    = 'none';
+  gameoverScrn.style.display = 'none';
+  stageclearScrn.style.display = 'none';
+
+  buildGrid();
+  populateGrid();
+  updateHUD();
+
+  clearTimeout(moverTimer);
+  moverTimer = setTimeout(launchMover, 800);
+  startTimer();
+  devFab.style.display = 'flex';
+}
+
+function stageClear() {
+  gameRunning = false;
+  clearTimeout(moverTimer);
+  stopTimer();
+  const stagetime = timerSeconds;
+  // unfreeze all
+  frozenCells.forEach((_, idx) => cells[idx].el.classList.remove('frozen'));
+  frozenCells.clear();
+
+  document.getElementById('stage-num').textContent = stage;
+  document.getElementById('next-stage-num').textContent = stage + 1;
+  document.getElementById('stageclear-time').textContent = `Cleared in ${formatTime(stagetime)}`;
+  stageclearScrn.style.display = 'flex';
+
+  setTimeout(() => {
+    stage++;
+    clearedCount = 0;
+    level = stage;
+    stageclearScrn.style.display = 'none';
+    gameRunning = true;
+    cells.forEach(c => c.el.classList.remove('cleared'));
+    buildGrid();
+    populateGrid();
+    updateHUD();
+    clearTimeout(moverTimer);
+    moverTimer = setTimeout(launchMover, 600);
+    startTimer();
+  }, 2200);
+}
+
+function endGame() {
+  gameRunning = false;
+  clearTimeout(moverTimer);
+  stopTimer();
+  devFab.style.display = 'none';
+  devPanel.style.display = 'none';
+  finalScore.textContent = score;
+  const isCampaign = currentMode === 'campaign';
+  document.getElementById('gameover-title').textContent = isCampaign ? `Stage ${stage}` : 'Game Over';
+  document.getElementById('gameover-sub').textContent   = isCampaign
+    ? `cleared — ${score} pts · ${formatTime(timerSeconds)}`
+    : `points · survived ${formatTime(timerSeconds)}`;
+  gameoverScrn.style.display = 'flex';
+}
+</script>
+</body>
+</html>
