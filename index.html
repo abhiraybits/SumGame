@@ -393,8 +393,8 @@
     <div id="timer" style="font-size:.85rem;color:#f0c040;font-weight:700;letter-spacing:1px">0:00</div>
   </div>
   <div style="text-align:right">
-    <div id="level-label">LEVEL</div>
-    <div id="level">1</div>
+    <div id="level-label" style="font-size:.75rem;color:#aaa">SPEED</div>
+    <div id="level" style="font-size:1rem;font-weight:800"></div>
   </div>
 </div>
 
@@ -751,15 +751,32 @@ function checkLevelUp() {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
+const SPEED_HUD_LABELS = [
+  'Crawl','Slow','Easy','Normal','Steady',
+  'Brisk','Fast','Rapid','Blazing','Insane','MAX'
+];
+
+function speedLabel() {
+  // map current speedMs to a 0-10 index
+  const ms = speedMs() * devSpeedMultiplier; // raw, before dev multiplier
+  const base = 1800;
+  const min  = 400;
+  const idx  = Math.round(((base - Math.max(min, ms)) / (base - min)) * 10);
+  return SPEED_HUD_LABELS[Math.min(10, Math.max(0, idx))];
+}
+
 function updateHUD() {
   scoreEl.textContent = score;
-  levelEl.textContent = level;
   livesEl.textContent = '❤️'.repeat(Math.max(0, lives)) + '🖤'.repeat(Math.max(0, MAX_LIVES - lives));
+
+  // speed label — always visible
+  document.getElementById('level-label').textContent =
+    currentMode === 'campaign' ? `STAGE ${stage} · SPEED` : 'SPEED';
+  levelEl.textContent = speedLabel();
+
   if (currentMode === 'campaign') {
     stageHud.style.display = 'block';
-    stageHud.textContent = `STAGE ${stage}`;
-    const remaining = TOTAL_CELLS - clearedCount;
-    levelEl.textContent = `${remaining} left`;
+    stageHud.textContent   = `${TOTAL_CELLS - clearedCount} left`;
   } else {
     stageHud.style.display = 'none';
   }
@@ -776,6 +793,7 @@ function startTimer() {
     const m = Math.floor(timerSeconds / 60);
     const s = timerSeconds % 60;
     timerEl.textContent = `${m}:${String(s).padStart(2, '0')}`;
+    updateHUD();
   }, 1000);
 }
 
