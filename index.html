@@ -472,13 +472,18 @@ function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + m
 
 function randNum() { return rand(0, 10); }
 
+function survivalTick() {
+  // increases every 30 seconds of survival time
+  return currentMode === 'survival' ? Math.floor(timerSeconds / 30) : (level - 1);
+}
+
 function speedMs() {
-  const base = Math.max(400, 1400 - (level - 1) * 80);
+  const base = Math.max(400, 1800 - survivalTick() * 100);
   return base / devSpeedMultiplier;
 }
 
 function spawnInterval() {
-  const base = Math.max(900, 2800 - (level - 1) * 180);
+  const base = Math.max(900, 3200 - survivalTick() * 220);
   return base / devSpeedMultiplier;
 }
 
