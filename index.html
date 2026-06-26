@@ -833,6 +833,7 @@ function toggleDevPanel() {
 function onSpeedSlider(val) {
   devSpeedMultiplier = SPEED_MULTS[val];
   document.getElementById('speed-val').textContent = SPEED_LABELS[val];
+  updateHUD();
 }
 
 function onTickSlider(val) {
