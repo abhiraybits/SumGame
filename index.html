@@ -358,6 +358,10 @@
       🗺️ Campaign
       <span class="mode-desc">Clear every cell<br>to advance</span>
     </button>
+    <button class="btn mode-btn" onclick="startGame('bouncy')" style="background:linear-gradient(135deg,#00b894,#0984e3)">
+      🏀 Bouncy
+      <span class="mode-desc">Numbers bounce<br>back 3 times</span>
+    </button>
   </div>
 </div>
 
@@ -596,6 +600,16 @@ function launchMover() {
   const totalTime = (totalDist / cellW) * speed;
   let startTime = null;
   let collided = false;
+  const maxBounces = currentMode === 'bouncy' ? 3 : 0;
+  let bouncesLeft = maxBounces;
+
+  const BOUNCE_COLORS = [
+    'linear-gradient(135deg,#8e44ad,#c0392b)',
+    'linear-gradient(135deg,#00b894,#0984e3)',
+    'linear-gradient(135deg,#f0c040,#e17055)',
+    'linear-gradient(135deg,#fd79a8,#6c5ce7)',
+  ];
+  mover.style.background = BOUNCE_COLORS[0];
 
   function step(ts) {
     if (!gameRunning) { mover.remove(); return; }
@@ -621,8 +635,19 @@ function launchMover() {
       }
     }
 
-    if (t < 1) requestAnimationFrame(step);
-    else mover.remove();
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else if (bouncesLeft > 0) {
+      bouncesLeft--;
+      [startX, endX] = [endX, startX];
+      [startY, endY] = [endY, startY];
+      crossedCells = crossedCells.slice().reverse();
+      mover.style.background = BOUNCE_COLORS[maxBounces - bouncesLeft];
+      startTime = null;
+      requestAnimationFrame(step);
+    } else {
+      mover.remove();
+    }
   }
 
   requestAnimationFrame(step);
