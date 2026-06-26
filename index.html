@@ -757,12 +757,10 @@ const SPEED_HUD_LABELS = [
 ];
 
 function speedLabel() {
-  // map current speedMs to a 0-10 index
-  const ms = speedMs() * devSpeedMultiplier; // raw, before dev multiplier
-  const base = 1800;
-  const min  = 400;
-  const idx  = Math.round(((base - Math.max(min, ms)) / (base - min)) * 10);
-  return SPEED_HUD_LABELS[Math.min(10, Math.max(0, idx))];
+  // in survival: one label per 30-second tick (exactly)
+  // in other modes: map from level
+  const tick = currentMode === 'survival' ? survivalTick() : (level - 1);
+  return SPEED_HUD_LABELS[Math.min(SPEED_HUD_LABELS.length - 1, tick)];
 }
 
 function updateHUD() {
