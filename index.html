@@ -419,6 +419,14 @@
     <input type="range" id="speed-slider" min="1" max="10" step="1" value="3" oninput="onSpeedSlider(this.value)">
   </div>
 
+  <div class="dev-row">
+    <label>
+      <span>Speed Level Every</span>
+      <span id="tick-val">30s</span>
+    </label>
+    <input type="range" id="tick-slider" min="3" max="60" step="1" value="30" oninput="onTickSlider(this.value)">
+  </div>
+
   <div class="dev-toggle">
     <span>Unlimited Lives</span>
     <button class="toggle-switch" id="lives-toggle" onclick="toggleUnlimitedLives()"></button>
@@ -451,8 +459,9 @@ let stage = 1;
 let clearedCount = 0;
 let timerSeconds = 0;
 let timerInterval = null;
-let devSpeedMultiplier = 1;   // 1 = normal
+let devSpeedMultiplier = 1;
 let devUnlimitedLives = false;
+let speedTickInterval = 30;   // seconds between each speed level in survival
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const arena        = document.getElementById('arena');
@@ -474,17 +483,21 @@ function randNum() { return rand(0, 10); }
 
 function survivalTick() {
   // increases every 30 seconds of survival time
-  return currentMode === 'survival' ? Math.floor(timerSeconds / 30) : (level - 1);
+  return currentMode === 'survival' ? Math.floor(timerSeconds / speedTickInterval) : (level - 1);
 }
 
+// ms per cell for each speed tick (Crawl → MAX)
+const SPEED_TABLE  = [1800, 1600, 1400, 1200, 1050, 900, 750, 550, 360, 220, 120];
+const SPAWN_TABLE  = [3200, 2900, 2600, 2300, 2050, 1800, 1500, 1150, 800, 500, 280];
+
 function speedMs() {
-  const base = Math.max(400, 1800 - survivalTick() * 100);
-  return base / devSpeedMultiplier;
+  const tick = Math.min(SPEED_TABLE.length - 1, survivalTick());
+  return SPEED_TABLE[tick] / devSpeedMultiplier;
 }
 
 function spawnInterval() {
-  const base = Math.max(900, 3200 - survivalTick() * 220);
-  return base / devSpeedMultiplier;
+  const tick = Math.min(SPAWN_TABLE.length - 1, survivalTick());
+  return SPAWN_TABLE[tick] / devSpeedMultiplier;
 }
 
 // ── Build grid ────────────────────────────────────────────────────────────────
@@ -820,6 +833,11 @@ function toggleDevPanel() {
 function onSpeedSlider(val) {
   devSpeedMultiplier = SPEED_MULTS[val];
   document.getElementById('speed-val').textContent = SPEED_LABELS[val];
+}
+
+function onTickSlider(val) {
+  speedTickInterval = parseInt(val);
+  document.getElementById('tick-val').textContent = val + 's';
 }
 
 function toggleUnlimitedLives() {
