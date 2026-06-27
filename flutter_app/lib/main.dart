@@ -300,6 +300,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   void _miss(int idx) {
+    _puff(idx);
     setState(() { frozen.remove(idx); if (!unlimitedLives) lives--; });
     if (!unlimitedLives && lives <= 0) _gameOver();
   }
@@ -340,6 +341,15 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         ],
       ),
     );
+  }
+
+  void _puff(int idx) {
+    final col = idx % kCols, row = idx ~/ kCols;
+    for (int i = 0; i < 6; i++) {
+      final a = (i / 6) * 2 * pi + rng.nextDouble() * 0.5;
+      final d = 8.0 + rng.nextDouble() * 16;
+      particles.add(Particle(col: col, row: row, dx: cos(a) * d, dy: sin(a) * d, color: Colors.red, life: 0.6));
+    }
   }
 
   void _burst(int idx) {
