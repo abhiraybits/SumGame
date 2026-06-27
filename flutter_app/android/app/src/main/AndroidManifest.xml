@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="sum_game"
+        android:label="Sum 10"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
