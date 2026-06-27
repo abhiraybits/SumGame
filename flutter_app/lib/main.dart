@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -163,6 +165,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
 
   Timer? spawnTimer, secondTimer;
   late AnimationController _ticker;
+  final AudioPlayer _sfx = AudioPlayer();
 
   double speedMult = 1.0;
   int tickInterval = 30;
@@ -285,6 +288,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   void _match(int idx) {
+    _playMatch();
     setState(() {
       score++; frozen.remove(idx); _burst(idx); flashOpacity = 0.3;
       if (widget.mode == GameMode.campaign) {
@@ -300,6 +304,8 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
   }
 
   void _miss(int idx) {
+    _playMiss();
+    _puff(idx);
     setState(() { frozen.remove(idx); if (!unlimitedLives) lives--; });
     if (!unlimitedLives && lives <= 0) _gameOver();
   }
@@ -340,6 +346,53 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
         ],
       ),
     );
+  }
+
+  // Generates a raw PCM WAV tone in memory — no asset files needed.
+  Uint8List _makeWav(List<({double freq, int ms})> tones) {
+    const sr = 44100;
+    final totalSamples = tones.fold(0, (s, t) => s + (sr * t.ms ~/ 1000));
+    final buf = ByteData(44 + totalSamples * 2);
+    void u32b(int o, int v) => buf.setUint32(o, v, Endian.big);
+    void u32l(int o, int v) => buf.setUint32(o, v, Endian.little);
+    void u16l(int o, int v) => buf.setUint16(o, v, Endian.little);
+    u32b(0, 0x52494646); u32l(4, 36 + totalSamples * 2); u32b(8, 0x57415645);
+    u32b(12, 0x666d7420); u32l(16, 16); u16l(20, 1); u16l(22, 1);
+    u32l(24, sr); u32l(28, sr * 2); u16l(32, 2); u16l(34, 16);
+    u32b(36, 0x64617461); u32l(40, totalSamples * 2);
+    int offset = 44;
+    for (final tone in tones) {
+      final n = sr * tone.ms ~/ 1000;
+      for (int i = 0; i < n; i++) {
+        final env = i < n * 0.05 ? i / (n * 0.05) : (n - i) / (n * 0.95);
+        final s = (sin(2 * pi * tone.freq * i / sr) * 28000 * env.clamp(0.0, 1.0)).round().clamp(-32768, 32767);
+        buf.setInt16(offset, s, Endian.little);
+        offset += 2;
+      }
+    }
+    return buf.buffer.asUint8List();
+  }
+
+  void _playMatch() {
+    _sfx.play(BytesSource(_makeWav([
+      (freq: 660, ms: 80),
+      (freq: 880, ms: 120),
+    ])));
+  }
+
+  void _playMiss() {
+    _sfx.play(BytesSource(_makeWav([
+      (freq: 220, ms: 180),
+    ])));
+  }
+
+  void _puff(int idx) {
+    final col = idx % kCols, row = idx ~/ kCols;
+    for (int i = 0; i < 6; i++) {
+      final a = (i / 6) * 2 * pi + rng.nextDouble() * 0.5;
+      final d = 8.0 + rng.nextDouble() * 16;
+      particles.add(Particle(col: col, row: row, dx: cos(a) * d, dy: sin(a) * d, color: Colors.red, life: 0.6));
+    }
   }
 
   void _burst(int idx) {
@@ -409,6 +462,7 @@ class _GameScreenState extends State<GameScreen> with SingleTickerProviderStateM
     _ticker.dispose();
     spawnTimer?.cancel();
     secondTimer?.cancel();
+    _sfx.dispose();
     super.dispose();
   }
 

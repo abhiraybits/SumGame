@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.abhiraybits.sum_game"
+    namespace = "com.abhiraybits.sum10"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,22 +19,36 @@ android {
         jvmTarget = JavaVersion.VERSION_1_8
     }
 
+    signingConfigs {
+        release {
+            // keystore.properties must exist at flutter_app/android/keystore.properties
+            // See README section "Building for release" for how to generate the keystore.
+            def keystorePropertiesFile = rootProject.file("keystore.properties")
+            if (keystorePropertiesFile.exists()) {
+                def p = new Properties()
+                p.load(new FileInputStream(keystorePropertiesFile))
+                storeFile     file(p['storeFile'])
+                storePassword p['storePassword']
+                keyAlias      p['keyAlias']
+                keyPassword   p['keyPassword']
+            }
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.abhiraybits.sum_game"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        applicationId = "com.abhiraybits.sum10"
+        minSdk = 21
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
